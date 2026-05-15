@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Enterprise Pharmacy System</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .dashboard-top { display: flex; gap: 20px; margin-bottom: 20px; max-width: 1400px; margin: 0 auto 20px auto; }
+        .stat-card { flex: 1; background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; border: 1px solid #cbd5e1; }
+        .stat-card h3 { margin: 0; color: #64748b; font-size: 14px; text-transform: uppercase; }
+        .stat-card h2 { margin: 10px 0 0 0; color: #3b82f6; font-size: 28px; }
+        .chart-container { flex: 2; background: rgba(255,255,255,0.95); padding: 15px; border-radius: 12px; max-height: 200px; display: flex; justify-content: center; border: 1px solid #cbd5e1; }
+        
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .search-bar { padding: 10px; width: 300px; border-radius: 8px; border: 1px solid #cbd5e1; }
+        .btn-success { background: #10b981; color: white; margin-left: 5px; }
+        .btn-success:hover { background: #059669; }
+        .btn-sell { background: #8b5cf6; color: white; padding: 6px 12px; }
+        .btn-sell:hover { background: #7c3aed; }
+        .expiring-soon { color: #f59e0b; font-weight: bold; }
+        .expired { color: #ef4444; font-weight: bold; }
+
+        
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { 
+            padding: 10px 20px; 
+            background: rgba(255,255,255,0.7); 
+            border: 1px solid #cbd5e1; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            color: #475569;
+            transition: all 0.2s ease;
+        }
+        .tab-btn:hover { background: white; }
+        .tab-btn.active { 
+            background: #3b82f6; 
+            color: white; 
+            border-color: #3b82f6; 
+            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>⚕️ PharmaSync Dashboard</h1>
+        <button class="btn-danger" style="position: absolute; top: 30px; right: 30px;" onclick="logout()">Logout</button>
+        <div class="header">
+        
+        <button class="btn-danger" style="position: absolute; top: 30px; right: 120px; background: #e11d48;" onclick="window.location.href='bloodbank.html'">🩸 Blood Bank Center</button>
+        <button class="btn-danger" style="position: absolute; top: 30px; right: 30px;" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <div class="dashboard-top">
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 20px;">
+            <div class="stat-card">
+                <h3>Total Value (Current Tab)</h3>
+                <h2 id="totalValueText">₹0.00</h2>
+            </div>
+            <div class="stat-card">
+                <h3>Total Items (Current Tab)</h3>
+                <h2 id="totalItemsText">0</h2>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="inventoryChart"></canvas>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card form-section">
+            <h2 id="formTitle">Add Inventory Item</h2>
+            
+            <label style="font-size: 12px; color: #64748b; margin-bottom: 5px; display:block;">Item Type:</label>
+            <select id="itemType" class="form-input" style="font-weight: bold;">
+                <option value="Medicine">💊 Medicine</option>
+                <option value="Test Kit">🧪 Test Kit</option>
+                <option value="General">🩹 General Product</option>
+            </select>
+
+            <input type="text" id="medName" class="form-input" placeholder="Item Name">
+            <input type="text" id="medCategory" class="form-input" placeholder="Category">
+            <input type="text" id="medSupplier" class="form-input" placeholder="Supplier">
+            <input type="number" id="medPrice" class="form-input" placeholder="Price (₹)">
+            <input type="number" id="medStock" class="form-input" placeholder="Stock Quantity">
+            
+            <label style="font-size: 12px; color: #64748b; margin-bottom: 5px; display:block;">Expiry Date:</label>
+            <input type="date" id="medExpiry" class="form-input">
+            
+            <button class="btn-primary" id="saveBtn" onclick="saveMedicine()">Save Item</button>
+            <p id="statusMessage"></p>
+        </div>
+
+        <div class="table-section">
+            <div id="alertBox" class="alert-box">
+                <strong>⚠️ Alert:</strong> Attention required:
+                <ul id="alertList"></ul>
+            </div>
+
+            <div class="card">
+                <div class="tabs" id="tabContainer">
+                    <button class="tab-btn active" onclick="switchTab('All')">All Inventory</button>
+                    <button class="tab-btn" onclick="switchTab('Medicine')">💊 Medicines</button>
+                    <button class="tab-btn" onclick="switchTab('Test Kit')">🧪 Test Kits</button>
+                    <button class="tab-btn" onclick="switchTab('General')">🩹 General Products</button>
+                </div>
+
+                <div class="toolbar">
+                    <input type="text" id="searchInput" class="search-bar" placeholder="🔍 Search current tab..." onkeyup="filterTable()">
+                    <button class="btn-success" onclick="exportToCSV()">📥 Export Data</button>
+                </div>
+                
+                <table id="medicineTable">
+                    <thead>
+                        <tr>
+                            <th>Type</th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Expiry</th><th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Security Check
+        if (localStorage.getItem("isLoggedIn") !== "true") { window.location.href = "login.html"; }
+        function logout() { localStorage.removeItem("isLoggedIn"); window.location.href = "login.html"; }
+
+        let inventoryList = [];
+        let editingId = null;
+        let chartInstance = null;
+        let currentActiveTab = 'All'; 
+
+        window.onload = () => { fetchInventory(); };
+
+        function fetchInventory() {
+            fetch('http://localhost:5000/api/inventory')
+            .then(res => res.json())
+            .then(data => {
+                inventoryList = data;
+                renderDashboard();
+            });
+        }
+
+       
+        function switchTab(tabName) {
+            currentActiveTab = tabName;
+            
+           
+            const buttons = document.querySelectorAll('.tab-btn');
+            buttons.forEach(btn => {
+                if(btn.innerText.includes(tabName) || (tabName === 'All' && btn.innerText === 'All Inventory')) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
+            
+            renderDashboard();
+        }
+
+        function renderDashboard() {
+            const tbody = document.getElementById('tableBody');
+            const alertBox = document.getElementById('alertBox');
+            const alertList = document.getElementById('alertList');
+            
+            tbody.innerHTML = ''; 
+            alertList.innerHTML = '';
+            let hasAlerts = false;
+            let totalValue = 0;
+            let totalItems = 0;
+
+            const today = new Date();
+            const thirtyDaysFromNow = new Date();
+            thirtyDaysFromNow.setDate(today.getDate() + 30);
+
+           
+            let displayList = inventoryList;
+            if (currentActiveTab !== 'All') {
+                displayList = inventoryList.filter(item => item.item_type === currentActiveTab);
+            }
+
+            displayList.forEach(med => {
+                totalValue += (med.price * med.stock_quantity);
+                totalItems += med.stock_quantity;
+
+                let stockClass = '';
+                if (med.stock_quantity < 10) { 
+                    stockClass = 'low-stock-text';
+                    hasAlerts = true;
+                    alertList.innerHTML += `<li>Low Stock: ${med.name} (Only ${med.stock_quantity} left)</li>`;
+                }
+
+                let expiryText = med.expiry_date || 'N/A';
+                let expiryClass = '';
+                if (med.expiry_date) {
+                    const expDate = new Date(med.expiry_date);
+                    if (expDate < today) {
+                        expiryClass = 'expired';
+                        hasAlerts = true;
+                        alertList.innerHTML += `<li style="color: red;">EXPIRED: ${med.name}</li>`;
+                    } else if (expDate <= thirtyDaysFromNow) {
+                        expiryClass = 'expiring-soon';
+                        hasAlerts = true;
+                        alertList.innerHTML += `<li>Expiring Soon: ${med.name}</li>`;
+                    }
+                }
+
+               
+                let typeEmoji = "💊";
+                if(med.item_type === "Test Kit") typeEmoji = "🧪";
+                if(med.item_type === "General") typeEmoji = "🩹";
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${typeEmoji} ${med.item_type || 'Medicine'}</td>
+                        <td><strong>${med.name}</strong></td>
+                        <td>${med.category}</td>
+                        <td>₹${med.price}</td>
+                        <td class="${stockClass}">${med.stock_quantity}</td>
+                        <td class="${expiryClass}">${expiryText}</td>
+                        <td>
+                            <button class="btn-sell" onclick="sellMedicine(${med.id})">💰 Sell 1</button>
+                            <button class="btn-warning" onclick="startEdit(${med.id})">Edit</button>
+                            <button class="btn-danger" onclick="deleteMedicine(${med.id})">X</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('totalValueText').innerText = `₹${totalValue.toFixed(2)}`;
+            document.getElementById('totalItemsText').innerText = totalItems;
+            alertBox.style.display = hasAlerts ? 'block' : 'none';
+
+            updateChart(displayList); 
+        }
+
+        function updateChart(dataList) {
+            const ctx = document.getElementById('inventoryChart').getContext('2d');
+            const categoryCounts = {};
+            dataList.forEach(med => {
+                categoryCounts[med.category] = (categoryCounts[med.category] || 0) + med.stock_quantity;
+            });
+
+            if (chartInstance) { chartInstance.destroy(); }
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(categoryCounts),
+                    datasets: [{
+                        data: Object.values(categoryCounts),
+                        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'],
+                        borderWidth: 1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function sellMedicine(id) {
+            fetch(`http://localhost:5000/api/inventory/sell/${id}`, { method: 'POST' })
+            .then(() => fetchInventory()); 
+        }
+
+        function filterTable() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const rows = document.getElementById('tableBody').getElementsByTagName('tr');
+            
+            for (let i = 0; i < rows.length; i++) {
+                let name = rows[i].getElementsByTagName('td')[1].innerText.toLowerCase();
+                let category = rows[i].getElementsByTagName('td')[2].innerText.toLowerCase();
+                if (name.includes(query) || category.includes(query)) {
+                    rows[i].style.display = "";
+                } else {
+                    rows[i].style.display = "none";
+                }
+            }
+        }
+
+        function exportToCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,Type,Name,Category,Supplier,Price,Stock,Expiry Date\n";
+            let exportData = currentActiveTab === 'All' ? inventoryList : inventoryList.filter(i => i.item_type === currentActiveTab);
+            
+            exportData.forEach(med => {
+                let row = `${med.item_type || 'Medicine'},${med.name},${med.category},${med.supplier || ''},${med.price},${med.stock_quantity},${med.expiry_date || ''}`;
+                csvContent += row + "\n";
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `pharmacy_${currentActiveTab}_export.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function saveMedicine() {
+            const medData = {
+                item_type: document.getElementById('itemType').value, 
+                name: document.getElementById('medName').value,
+                category: document.getElementById('medCategory').value,
+                supplier: document.getElementById('medSupplier').value,
+                unit_price: document.getElementById('medPrice').value, 
+                stock_quantity: document.getElementById('medStock').value,
+                expiry_date: document.getElementById('medExpiry').value
+            };
+
+            const url = editingId ? `http://localhost:5000/api/inventory/${editingId}` : 'http://localhost:5000/api/inventory';
+            const method = editingId ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(medData)
+            }).then(() => {
+                editingId = null;
+                document.getElementById('formTitle').innerText = "Add Inventory Item";
+                document.getElementById('saveBtn').innerText = "Save Item";
+                document.querySelectorAll('.form-input').forEach(input => input.value = '');
+                document.getElementById('itemType').value = 'Medicine';
+                fetchInventory(); 
+            });
+        }
+
+        function startEdit(id) {
+            const med = inventoryList.find(m => m.id === id);
+            if(med) {
+                document.getElementById('itemType').value = med.item_type || 'Medicine';
+                document.getElementById('medName').value = med.name;
+                document.getElementById('medCategory').value = med.category;
+                document.getElementById('medSupplier').value = med.supplier || '';
+                document.getElementById('medPrice').value = med.price;
+                document.getElementById('medStock').value = med.stock_quantity;
+                document.getElementById('medExpiry').value = med.expiry_date || '';
+                
+                document.getElementById('formTitle').innerText = "Edit Item";
+                document.getElementById('saveBtn').innerText = "Update Item";
+                editingId = id; 
+                window.scrollTo(0, 0); 
+            }
+        }
+
+        function deleteMedicine(id) {
+            if (confirm("Delete this item?")) {
+                fetch(`http://localhost:5000/api/inventory/${id}`, { method: 'DELETE' })
+                .then(() => fetchInventory());
+            }
+        }
+    </script>
+</body>
+</html>
